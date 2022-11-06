@@ -79,6 +79,9 @@ def parse_args():
         help="The configuration name of the dataset to use (via the datasets library).",
     )
     parser.add_argument(
+        "--context_file", type=str, default=None, help="A csv or a json file containing the context data."
+    )
+    parser.add_argument(
         "--train_file", type=str, default=None, help="A csv or a json file containing the training data."
     )
     parser.add_argument(
@@ -361,6 +364,7 @@ def main():
         column_names = raw_datasets["validation"].column_names
 
     # When using your own dataset or a different dataset from swag, you will probably need to change this.
+    # TODO
     ending_names = [f"ending{i}" for i in range(4)]
     context_name = "sent1"
     question_header_name = "sent2"

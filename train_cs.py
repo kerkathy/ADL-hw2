@@ -426,13 +426,14 @@ def main():
 
         questions = [[question] * 4 for question in examples["question"]]
         choices = [
-            ["{} {}".format(examples["question"][i], contexts[id]) for id in ids] for i, ids in enumerate(examples["paragraphs"])
+            [contexts[id] for id in ids] for i, ids in enumerate(examples["paragraphs"])
+            # ["{} {}".format(examples["question"][i], contexts[id]) for id in ids] for i, ids in enumerate(examples["paragraphs"])
         ]
         if "relevant" in examples.keys():
-            labels = examples["relevant"]
+            labels = [examples['paragraphs'][i].index(ans) for i,ans in enumerate(examples['relevant'])]
         else:
             labels = [0] * len(questions)
-
+        
         # Flatten out
         questions = list(chain(*questions))
         choices = list(chain(*choices))
@@ -594,14 +595,12 @@ def main():
                 outputs = model(**batch)
                 loss = outputs.loss
                 # for debug
-                print(model)
+                # print(model)
                 # We keep track of the loss at each epoch
                 if args.with_tracking:
                     total_loss += loss.detach().float()
-                print("about to start backward!")
                 
                 accelerator.backward(loss)
-                print("end backward!")
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
