@@ -1,5 +1,6 @@
-python train_cs.py \
-  --model_name_or_path bert-base-chinese \
+python context_selection.py \
+  --do_train \
+  --model_name_or_path hfl/chinese-macbert-base \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
@@ -12,5 +13,12 @@ python train_cs.py \
   --num_warmup_steps 0 \
   --gradient_accumulation_steps 16 \
   --num_train_epochs 1 \
-  --output_dir ./cs \
+  --checkpointing_steps 50 \
+  --output_dir ./cs/macbert \
   --cache_dir ./cache/ \
+  --with_tracking \
+  # --debug \
+  # --do_predict
+  # --test_file data/test.json \
+  # --model_type BertForMultipleChoice \
+  

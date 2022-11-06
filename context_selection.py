@@ -20,6 +20,7 @@ Fine-tuning a 🤗 Transformers model on multiple choice relying on the accelera
 
 import argparse
 import json
+import csv
 import logging
 import math
 import os
@@ -66,6 +67,17 @@ MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a multiple choice task")
+    
+    parser.add_argument(
+        "--do_train",
+        action="store_true",
+        help="Do training and validation.",
+    )
+    parser.add_argument(
+        "--do_predict",
+        action="store_true",
+        help="Do testing",
+    )
     parser.add_argument(
         "--dataset_name",
         type=str,
@@ -86,6 +98,9 @@ def parse_args():
     )
     parser.add_argument(
         "--validation_file", type=str, default=None, help="A csv or a json file containing the validation data."
+    )
+    parser.add_argument(
+        "--test_file", type=str, default=None, help="A csv or a json file containing the test data."
     )
     parser.add_argument(
         "--max_length",
@@ -218,6 +233,10 @@ def parse_args():
     if args.push_to_hub:
         assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
 
+    if args.do_predict:
+        assert args.test_file is not None, "Need an `test_file` to predict when `--do_predict` is passed."
+        # assert args.config_name is not None, "Need an `config_name` to config model when `--do_predict` is passed."
+
     return args
 
 
@@ -255,6 +274,10 @@ class DataCollatorForMultipleChoice:
 
     def __call__(self, features):
         label_name = "label" if "label" in features[0].keys() else "labels"
+        # flag = False
+        # if label_name in features[0]:
+        #     flag = True
+        # labels = [feature.pop(label_name) for feature in features if label_name in feature]
         labels = [feature.pop(label_name) for feature in features]
         batch_size = len(features)
         num_choices = len(features[0]["input_ids"])
@@ -353,9 +376,13 @@ def main():
         data_files = {}
         if args.train_file is not None:
             data_files["train"] = args.train_file
+            extension = args.train_file.split(".")[-1]
         if args.validation_file is not None:
             data_files["validation"] = args.validation_file
-        extension = args.train_file.split(".")[-1]
+        if args.test_file is not None and args.do_predict:
+            data_files["test"] = args.test_file
+            extension = args.test_file.split(".")[-1]
+        
         raw_datasets = load_dataset(extension, data_files=data_files)
     # Trim a number of training examples
     if args.debug:
@@ -364,20 +391,22 @@ def main():
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
-    if raw_datasets["train"] is not None:
-        column_names = raw_datasets["train"].column_names
-    else:
-        column_names = raw_datasets["validation"].column_names
+    # if args.do_train:
+    #     if raw_datasets["train"] is not None:
+    #         column_names = raw_datasets["train"].column_names
+    #     elif raw_datasets["validation"] is not None:
+    #         column_names = raw_datasets["validation"].column_names
+    # if args.do_predict:
+    #     if raw_datasets["test"] is not None:
+    #         column_names = raw_datasets["test"].column_names
 
     # When using your own dataset or a different dataset from swag, you will probably need to change this.
-    # TODO
-    
     # Load pretrained model and tokenizer
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     if args.config_name:
-        config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir,)
+        config = AutoConfig.from_pretrained(args.config_name, cache_dir=args.cache_dir,)
     elif args.model_name_or_path:
         config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir,)
     else:
@@ -416,28 +445,16 @@ def main():
     padding = "max_length" if args.pad_to_max_length else False
 
     def preprocess_function(examples):
-
-        # first_sentences = [[context] * 4 for context in examples[context_name]]
-        # question_headers = examples[question_header_name]
-        # second_sentences = [
-        #     [f"{header} {examples[end][i]}" for end in ending_names] for i, header in enumerate(question_headers)
-        # ]
-        # labels = examples[label_column_name]
-
         questions = [[question] * 4 for question in examples["question"]]
         choices = [
-            [contexts[id] for id in ids] for i, ids in enumerate(examples["paragraphs"])
+            [contexts[id] for id in ids] for ids in examples["paragraphs"]
             # ["{} {}".format(examples["question"][i], contexts[id]) for id in ids] for i, ids in enumerate(examples["paragraphs"])
         ]
-        if "relevant" in examples.keys():
-            labels = [examples['paragraphs'][i].index(ans) for i,ans in enumerate(examples['relevant'])]
-        else:
-            labels = [0] * len(questions)
-        
+
         # Flatten out
         questions = list(chain(*questions))
         choices = list(chain(*choices))
-        assert len(questions) == len(choices), f"Unmatch! questions: {len(questions)};  choices: {len(choices)}; labels: {len(labels)}"
+        assert len(questions) == len(choices), f"Unmatch! questions: {len(questions)};  choices: {len(choices)}"
 
         # Tokenize
         tokenized_examples = tokenizer(
@@ -447,18 +464,38 @@ def main():
             padding=padding,
             truncation=True,
         )
+
         # Un-flatten
         tokenized_inputs = {k: [v[i : i + 4] for i in range(0, len(v), 4)] for k, v in tokenized_examples.items()}
-        tokenized_inputs["labels"] = torch.tensor(labels, dtype=torch.int64)
+
+        # train/val
+        if "relevant" in examples:
+            tokenized_inputs["labels"] = [examples['paragraphs'][i].index(ans) for i,ans in enumerate(examples['relevant'])] # each val is within [0,1,2,3]
+        # test
+        else:
+            tokenized_inputs["labels"] = [0] * len(examples["question"])
+        
         return tokenized_inputs
 
     with accelerator.main_process_first():
-        processed_datasets = raw_datasets.map(
-            preprocess_function, batched=True, remove_columns=raw_datasets["train"].column_names
-        )
+        if args.do_train:
+            processed_datasets = raw_datasets.map(
+                preprocess_function, batched=True, remove_columns=raw_datasets["train"].column_names
+            )
+        elif args.do_predict:
+            # 不確定
+            processed_datasets = raw_datasets.map(
+                preprocess_function, batched=True, remove_columns=raw_datasets["test"].column_names
+            )
+            # processed_datasets = raw_datasets.map(
+            #     preprocess_function, batched=True
+            # )
 
-    train_dataset = processed_datasets["train"]
-    eval_dataset = processed_datasets["validation"]
+    if args.do_train:
+        train_dataset = processed_datasets["train"]
+        eval_dataset = processed_datasets["validation"]
+    elif args.do_predict:
+        test_dataset = processed_datasets["test"]
 
     # Log a few random samples from the training set:
     # for index in random.sample(range(len(train_dataset)), 1):
@@ -477,175 +514,211 @@ def main():
             tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
         )
 
-    train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
-    )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    if args.do_train:
+        train_dataloader = DataLoader(
+            train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        )
+        eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    if args.do_predict:
+        test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
 
-    # Optimizer
-    # Split weights in two groups, one with weight decay and the other not.
-    no_decay = ["bias", "LayerNorm.weight"]
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": args.weight_decay,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    if args.do_train:
+        # Optimizer
+        # Split weights in two groups, one with weight decay and the other not.
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": args.weight_decay,
+            },
+            {
+                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Use the device given by the `accelerator` object.
     device = accelerator.device
     model.to(device)
+    
+    if args.do_train:
+        # Scheduler and math around the number of training steps.
+        overrode_max_train_steps = False
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+        if args.max_train_steps is None:
+            args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+            overrode_max_train_steps = True
 
-    # Scheduler and math around the number of training steps.
-    overrode_max_train_steps = False
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-        overrode_max_train_steps = True
+        lr_scheduler = get_scheduler(
+            name=args.lr_scheduler_type,
+            optimizer=optimizer,
+            num_warmup_steps=args.num_warmup_steps * args.gradient_accumulation_steps,
+            num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+        )
 
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_warmup_steps=args.num_warmup_steps * args.gradient_accumulation_steps,
-        num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
-    )
+        # Prepare everything with our `accelerator`.
+        model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
+            model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
+        )
 
-    # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
-    )
 
-    # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if overrode_max_train_steps:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    # Afterwards we recalculate our number of training epochs
-    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+        # We need to recalculate our total training steps as the size of the training dataloader may have changed.
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+        if overrode_max_train_steps:
+            args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+        # Afterwards we recalculate our number of training epochs
+        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    # Figure out how many steps we should save the Accelerator states
-    checkpointing_steps = args.checkpointing_steps
-    if checkpointing_steps is not None and checkpointing_steps.isdigit():
-        checkpointing_steps = int(checkpointing_steps)
+        # Figure out how many steps we should save the Accelerator states
+        checkpointing_steps = args.checkpointing_steps
+        if checkpointing_steps is not None and checkpointing_steps.isdigit():
+            checkpointing_steps = int(checkpointing_steps)
 
-    # We need to initialize the trackers we use, and also store our configuration.
-    # The trackers initializes automatically on the main process.
-    if args.with_tracking:
-        experiment_config = vars(args)
-        # TensorBoard cannot log Enums, need the raw value
-        experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
-        accelerator.init_trackers("swag_no_trainer", experiment_config)
-
-    # Metrics
-    metric = evaluate.load("accuracy")
-
-    # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
-
-    logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
-    logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
-    # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
-    completed_steps = 0
-    starting_epoch = 0
-
-    # Potentially load in the weights and states from a previous save
-    if args.resume_from_checkpoint:
-        if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
-            accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
-            accelerator.load_state(args.resume_from_checkpoint)
-            path = os.path.basename(args.resume_from_checkpoint)
-        else:
-            # Get the most recent checkpoint
-            dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
-            dirs.sort(key=os.path.getctime)
-            path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
-        # Extract `epoch_{i}` or `step_{i}`
-        training_difference = os.path.splitext(path)[0]
-
-        if "epoch" in training_difference:
-            starting_epoch = int(training_difference.replace("epoch_", "")) + 1
-            resume_step = None
-        else:
-            resume_step = int(training_difference.replace("step_", ""))
-            starting_epoch = resume_step // len(train_dataloader)
-            resume_step -= starting_epoch * len(train_dataloader)
-
-    for epoch in range(starting_epoch, args.num_train_epochs):
-        model.train()
+        # We need to initialize the trackers we use, and also store our configuration.
+        # The trackers initializes automatically on the main process.
         if args.with_tracking:
-            total_loss = 0
-        for step, batch in enumerate(train_dataloader):
-            # We need to skip steps until we reach the resumed step
-            if args.resume_from_checkpoint and epoch == starting_epoch:
-                if resume_step is not None and step < resume_step:
+            experiment_config = vars(args)
+            # TensorBoard cannot log Enums, need the raw value
+            experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
+            accelerator.init_trackers("tracker", experiment_config)
+
+        # Metrics
+        metric = evaluate.load("accuracy")
+
+
+    elif args.do_predict:
+        model, test_dataloader = accelerator.prepare(
+            model, test_dataloader
+        )
+
+    # -----------------------Train and Evaluate---------------------------------------------
+    if args.do_train:
+        # Train!
+        total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+
+        logger.info("***** Running training *****")
+        logger.info(f"  Num examples = {len(train_dataset)}")
+        logger.info(f"  Num Epochs = {args.num_train_epochs}")
+        logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
+        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+        logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+        logger.info(f"  Total optimization steps = {args.max_train_steps}")
+        # Only show the progress bar once on each machine.
+        progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+        completed_steps = 0
+        starting_epoch = 0
+
+        # Potentially load in the weights and states from a previous save
+        if args.resume_from_checkpoint:
+            if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
+                accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
+                accelerator.load_state(args.resume_from_checkpoint)
+                path = os.path.basename(args.resume_from_checkpoint)
+            else:
+                # Get the most recent checkpoint
+                dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
+                dirs.sort(key=os.path.getctime)
+                path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
+            # Extract `epoch_{i}` or `step_{i}`
+            training_difference = os.path.splitext(path)[0]
+
+            if "epoch" in training_difference:
+                starting_epoch = int(training_difference.replace("epoch_", "")) + 1
+                resume_step = None
+            else:
+                resume_step = int(training_difference.replace("step_", ""))
+                starting_epoch = resume_step // len(train_dataloader)
+                resume_step -= starting_epoch * len(train_dataloader)
+
+        for epoch in range(starting_epoch, args.num_train_epochs):
+            model.train()
+            if args.with_tracking:
+                total_loss = 0
+            for step, batch in enumerate(train_dataloader):
+                # We need to skip steps until we reach the resumed step
+                if args.resume_from_checkpoint and epoch == starting_epoch:
+                    if resume_step is not None and step < resume_step:
+                        completed_steps += 1
+                        continue
+
+                with accelerator.accumulate(model):
+                    outputs = model(**batch)
+                    loss = outputs.loss
+                    # for debug
+                    # print(model)
+                    # We keep track of the loss at each epoch
+                    if args.with_tracking:
+                        total_loss += loss.detach().float()
+                    print(f"[Training Step {step}] Loss: {loss}")
+                    
+                    accelerator.backward(loss)
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+
+                # Checks if the accelerator has performed an optimization step behind the scenes
+                if accelerator.sync_gradients:
+                    progress_bar.update(1)
                     completed_steps += 1
-                    continue
 
-            with accelerator.accumulate(model):
-                outputs = model(**batch)
-                loss = outputs.loss
-                # for debug
-                # print(model)
-                # We keep track of the loss at each epoch
-                if args.with_tracking:
-                    total_loss += loss.detach().float()
-                
-                accelerator.backward(loss)
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
+                # if isinstance(checkpointing_steps, int):
+                #     if completed_steps % checkpointing_steps == 0:
+                #         output_dir = f"step_{completed_steps }"
+                #         if args.output_dir is not None:
+                #             output_dir = os.path.join(args.output_dir, output_dir)
+                #         accelerator.save_state(output_dir)
 
-            # Checks if the accelerator has performed an optimization step behind the scenes
-            if accelerator.sync_gradients:
-                progress_bar.update(1)
-                completed_steps += 1
+                if completed_steps >= args.max_train_steps:
+                    break
 
-            if isinstance(checkpointing_steps, int):
-                if completed_steps % checkpointing_steps == 0:
-                    output_dir = f"step_{completed_steps }"
-                    if args.output_dir is not None:
-                        output_dir = os.path.join(args.output_dir, output_dir)
-                    accelerator.save_state(output_dir)
+            model.eval()
+            for step, batch in enumerate(eval_dataloader):
+                with torch.no_grad():
+                    outputs = model(**batch)
+                predictions = outputs.logits.argmax(dim=-1)
+                predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
+                metric.add_batch(
+                    predictions=predictions,
+                    references=references,
+                )
 
-            if completed_steps >= args.max_train_steps:
-                break
+            eval_metric = metric.compute()
+            accelerator.print(f"epoch {epoch}: {eval_metric}")
 
-        model.eval()
-        for step, batch in enumerate(eval_dataloader):
-            with torch.no_grad():
-                outputs = model(**batch)
-            predictions = outputs.logits.argmax(dim=-1)
-            predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
-            metric.add_batch(
-                predictions=predictions,
-                references=references,
-            )
+            if args.with_tracking:
+                accelerator.log(
+                    {
+                        "accuracy": eval_metric,
+                        "train_loss": total_loss.item() / len(train_dataloader),
+                        "epoch": epoch,
+                        "step": completed_steps,
+                    },
+                    step=completed_steps,
+                )
 
-        eval_metric = metric.compute()
-        accelerator.print(f"epoch {epoch}: {eval_metric}")
+            if args.push_to_hub and epoch < args.num_train_epochs - 1:
+                accelerator.wait_for_everyone()
+                unwrapped_model = accelerator.unwrap_model(model)
+                unwrapped_model.save_pretrained(
+                    args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
+                )
+                if accelerator.is_main_process:
+                    tokenizer.save_pretrained(args.output_dir)
+                    repo.push_to_hub(
+                        commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
+                    )
+
+            # if args.checkpointing_steps == "epoch":
+            #     output_dir = f"epoch_{epoch}"
+            #     if args.output_dir is not None:
+            #         output_dir = os.path.join(args.output_dir, output_dir)
+            #     accelerator.save_state(output_dir)
 
         if args.with_tracking:
-            accelerator.log(
-                {
-                    "accuracy": eval_metric,
-                    "train_loss": total_loss.item() / len(train_dataloader),
-                    "epoch": epoch,
-                    "step": completed_steps,
-                },
-                step=completed_steps,
-            )
+            accelerator.end_training()
 
-        if args.push_to_hub and epoch < args.num_train_epochs - 1:
+        if args.output_dir is not None:
             accelerator.wait_for_everyone()
             unwrapped_model = accelerator.unwrap_model(model)
             unwrapped_model.save_pretrained(
@@ -653,31 +726,40 @@ def main():
             )
             if accelerator.is_main_process:
                 tokenizer.save_pretrained(args.output_dir)
-                repo.push_to_hub(
-                    commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-                )
+                if args.push_to_hub:
+                    repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+            with open(os.path.join(args.output_dir, "all_results.json"), "w") as f:
+                json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
+    # -------------------------End of Train and Evaluate-------------------------------------------
 
-        if args.checkpointing_steps == "epoch":
-            output_dir = f"epoch_{epoch}"
-            if args.output_dir is not None:
-                output_dir = os.path.join(args.output_dir, output_dir)
-            accelerator.save_state(output_dir)
+    if args.do_predict:
+        logger.info("***** Running testing *****")
+        logger.info(f"  Num examples = {len(test_dataset)}")
+        progress_bar = tqdm(range(int(len(test_dataset) / args.per_device_eval_batch_size)))
+        # Only show the progress bar once on each machine.
 
-    if args.with_tracking:
-        accelerator.end_training()
+        model.eval()
+        predict = []
+        for step, batch in enumerate(test_dataloader):
+            with torch.no_grad():
+                outputs = model(**batch)
+            predictions = outputs.logits.argmax(dim=-1)
+            for choice in predictions:
+                predict.append(choice)
+            progress_bar.update(1)
 
-    if args.output_dir is not None:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.save_pretrained(
-            args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
-        )
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
-        with open(os.path.join(args.output_dir, "all_results.json"), "w") as f:
-            json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
+        if args.push_to_hub:
+            accelerator.wait_for_everyone()
+
+        if args.output_dir is not None:
+            accelerator.wait_for_everyone()
+            # with open(os.path.join(args.output_dir, "predict.json"), "w") as f:
+                # json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
+
+            with open(f"{args.output_dir}/predict.json", 'w') as f:
+                f.write('id,relevant\n')
+                for i, choice in enumerate(predict):
+                    f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
 
 
 if __name__ == "__main__":
