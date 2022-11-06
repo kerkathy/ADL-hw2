@@ -1,6 +1,6 @@
 python context_selection.py \
   --do_train \
-  --model_name_or_path hfl/chinese-macbert-base \
+  --model_name_or_path hfl/chinese-roberta-wwm-ext \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
@@ -14,7 +14,7 @@ python context_selection.py \
   --gradient_accumulation_steps 16 \
   --num_train_epochs 1 \
   --checkpointing_steps 50 \
-  --output_dir ./cs/macbert \
+  --output_dir ./cs/roberta2 \
   --cache_dir ./cache/ \
   --with_tracking \
   # --debug \
