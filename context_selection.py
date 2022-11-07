@@ -756,10 +756,11 @@ def main():
             # with open(os.path.join(args.output_dir, "predict.json"), "w") as f:
                 # json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
 
-            with open(f"{args.output_dir}/predict.json", 'w') as f:
-                f.write('id,relevant\n')
+            with open(f"{args.output_dir}/preprocessed_test.csv", 'w') as f:
+                # TODO: 把test.json多加一列relevant
+                f.write('id,question,relevant\n')
                 for i, choice in enumerate(predict):
-                    f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
+                    f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["question"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
 
 
 if __name__ == "__main__":

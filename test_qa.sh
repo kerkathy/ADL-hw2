@@ -1,9 +1,8 @@
 python3.9 question_answering.py \
-  --model_name_or_path bert-base-chinese \
+  --model_name_or_path qa/bert-base \
   --context_file data/context.json \
-  --train_file data/train.json \
-  --validation_file data/valid.json \
-  --do_train \
+  --test_file data/test.json \
+  --do_predict \
   --do_eval \
   --evaluation_strategy steps \
   --eval_steps 100 \
@@ -18,8 +17,6 @@ python3.9 question_answering.py \
   --output_dir ./qa/bert-base \
   --overwrite_output_dir \
   --cache_dir ./qa/bert-base
-  # --do_predict
-  # --test_file data/test.json \
   # --max_train_samples 100 \
   # --max_eval_samples 100 \
   #  \

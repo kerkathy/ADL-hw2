@@ -21,6 +21,7 @@ Fine-tuning the library models for question answering using a slightly adapted v
 import logging
 import os
 import sys
+import json
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -102,6 +103,7 @@ class DataTrainingArguments:
     dataset_config_name: Optional[str] = field(
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
+    context_file: Optional[str] = field(default=None, metadata={"help": "The input context data file (a text file)."})
     train_file: Optional[str] = field(default=None, metadata={"help": "The input training data file (a text file)."})
     validation_file: Optional[str] = field(
         default=None,
@@ -203,6 +205,9 @@ class DataTrainingArguments:
         ):
             raise ValueError("Need either a dataset name or a training/validation file/test_file.")
         else:
+            if self.context_file is not None:
+                extension = self.context_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`context_file` should be a csv or a json file."
             if self.train_file is not None:
                 extension = self.train_file.split(".")[-1]
                 assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
@@ -284,28 +289,31 @@ def main():
         raw_datasets = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
+            # cache_dir=model_args.cache_dir,
+            # use_auth_token=True if model_args.use_auth_token else None,
         )
     else:
         data_files = {}
         if data_args.train_file is not None:
             data_files["train"] = data_args.train_file
             extension = data_args.train_file.split(".")[-1]
-
         if data_args.validation_file is not None:
             data_files["validation"] = data_args.validation_file
             extension = data_args.validation_file.split(".")[-1]
-        if data_args.test_file is not None:
+        if data_args.test_file is not None and data_args.do_predict:
             data_files["test"] = data_args.test_file
             extension = data_args.test_file.split(".")[-1]
         raw_datasets = load_dataset(
             extension,
             data_files=data_files,
-            field="data",
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
+            # field="data",
+            # cache_dir=model_args.cache_dir,
+            # use_auth_token=True if model_args.use_auth_token else None,
         )
+    
+    if data_args.context_file is not None:
+        with open(data_args.context_file, encoding="utf-8") as f:
+            contexts = json.load(f)
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -352,9 +360,10 @@ def main():
         column_names = raw_datasets["validation"].column_names
     else:
         column_names = raw_datasets["test"].column_names
-    question_column_name = "question" if "question" in column_names else column_names[0]
-    context_column_name = "context" if "context" in column_names else column_names[1]
-    answer_column_name = "answers" if "answers" in column_names else column_names[2]
+    question_column_name = "question"
+    context_column_name = "context"
+    answer_column_name = "answer"
+    answer_start_column_name = "start"
 
     # Padding side determines if we do (question|context) or (context|question).
     pad_on_right = tokenizer.padding_side == "right"
@@ -368,17 +377,23 @@ def main():
 
     # Training preprocessing
     def prepare_train_features(examples):
+        # print("======================= DEBUG =======================")
+        # print("example: {}".format(examples[question_column_name]))
+        # print("example len: {}".format(len(examples["relevant"])))
         # Some of the questions have lots of whitespace on the left, which is not useful and will make the
         # truncation of the context fail (the tokenized question will take a lots of space). So we remove that
         # left whitespace
         examples[question_column_name] = [q.lstrip() for q in examples[question_column_name]]
 
+        # map relevant context num to context text
+        context = [contexts[i] for i in examples["relevant"]]
+
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
         # context that overlaps a bit the context of the previous feature.
         tokenized_examples = tokenizer(
-            examples[question_column_name if pad_on_right else context_column_name],
-            examples[context_column_name if pad_on_right else question_column_name],
+            examples[question_column_name] if pad_on_right else context,
+            context if pad_on_right else examples[question_column_name],
             truncation="only_second" if pad_on_right else "only_first",
             max_length=max_seq_length,
             stride=data_args.doc_stride,
@@ -386,6 +401,9 @@ def main():
             return_offsets_mapping=True,
             padding="max_length" if data_args.pad_to_max_length else False,
         )
+        # print("len in input_ids: {}".format(len(tokenized_examples["input_ids"])))
+        # print("max_seq_length: {}".format(max_seq_length))
+        # print("tokenized_examples keys: {}".format(tokenized_examples.keys()))
 
         # Since one example might give us several features if it has a long context, we need a map from a feature to
         # its corresponding example. This key gives us just that.
@@ -409,14 +427,22 @@ def main():
             # One example can give several spans, this is the index of the example containing this span of text.
             sample_index = sample_mapping[i]
             answers = examples[answer_column_name][sample_index]
+
+            # print(f"answers:{answers}")
+            # Format as SQuAD dataset
+            processed_answers = dict()
+            processed_answers[answer_start_column_name] = [answers[answer_start_column_name]]
+            processed_answers["text"] = [answers["text"]]
+            # print(f"processed answers:{processed_answers}")
+
             # If no answers are given, set the cls_index as answer.
-            if len(answers["answer_start"]) == 0:
+            if len(processed_answers[answer_start_column_name]) == 0:
                 tokenized_examples["start_positions"].append(cls_index)
                 tokenized_examples["end_positions"].append(cls_index)
             else:
                 # Start/end character index of the answer in the text.
-                start_char = answers["answer_start"][0]
-                end_char = start_char + len(answers["text"][0])
+                start_char = processed_answers[answer_start_column_name][0]
+                end_char = start_char + len(processed_answers["text"][0])
 
                 # Start token index of the current span in the text.
                 token_start_index = 0
@@ -441,6 +467,7 @@ def main():
                     while offsets[token_end_index][1] >= end_char:
                         token_end_index -= 1
                     tokenized_examples["end_positions"].append(token_end_index + 1)
+        # print("tokenized_examples final keys: {}".format(tokenized_examples.keys()))
 
         return tokenized_examples
 
@@ -474,12 +501,15 @@ def main():
         # left whitespace
         examples[question_column_name] = [q.lstrip() for q in examples[question_column_name]]
 
+        # map relevant context num to context text
+        context = [contexts[i] for i in examples["relevant"]]
+
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
         # context that overlaps a bit the context of the previous feature.
         tokenized_examples = tokenizer(
-            examples[question_column_name if pad_on_right else context_column_name],
-            examples[context_column_name if pad_on_right else question_column_name],
+            examples[question_column_name] if pad_on_right else context,
+            context if pad_on_right else examples[question_column_name],
             truncation="only_second" if pad_on_right else "only_first",
             max_length=max_seq_length,
             stride=data_args.doc_stride,
@@ -525,6 +555,7 @@ def main():
         # Validation Feature Creation
         with training_args.main_process_first(desc="validation dataset map pre-processing"):
             eval_dataset = eval_examples.map(
+                # prepare_train_features,
                 prepare_validation_features,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
@@ -574,6 +605,7 @@ def main():
         predictions = postprocess_qa_predictions(
             examples=examples,
             features=features,
+            contexts=contexts,
             predictions=predictions,
             version_2_with_negative=data_args.version_2_with_negative,
             n_best_size=data_args.n_best_size,
@@ -591,12 +623,22 @@ def main():
         else:
             formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
 
-        references = [{"id": ex["id"], "answers": ex[answer_column_name]} for ex in examples]
+        references = []
+        for ex in examples:
+            ex_dict = dict()
+            ex_dict["id"] = ex["id"]
+            ex_dict["answers"] = {
+                'answer_start': [ex[answer_column_name][answer_start_column_name]],
+                'text' : [ex[answer_column_name]["text"]]
+                }
+            references.append(ex_dict)
+
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
     metric = evaluate.load("squad_v2" if data_args.version_2_with_negative else "squad")
 
     def compute_metrics(p: EvalPrediction):
+        # print("In compute metric, prediction : ", p.predictions,"; label_ids : ", p.label_ids)
         return metric.compute(predictions=p.predictions, references=p.label_ids)
 
     # Initialize our Trainer
@@ -656,6 +698,9 @@ def main():
 
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
+
+        #TODO: write file
+
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "question-answering"}
     if data_args.dataset_name is not None:

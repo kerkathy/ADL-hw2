@@ -1,5 +1,5 @@
 python3.9 question_answering.py \
-  --model_name_or_path bert-base-chinese \
+  --model_name_or_path chinese-roberta-wwm-ext-large \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
