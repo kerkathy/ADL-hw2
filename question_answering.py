@@ -589,7 +589,7 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
             predict_dataset = predict_dataset.select(range(max_predict_samples))
-    logger.info("Using ", training_args.device, " to train.")
+    # printf("Using ", training_args.device, " to train.")
 
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
@@ -633,7 +633,9 @@ def main():
                     'answer_start': [ex[answer_column_name][answer_start_column_name]],
                     'text' : [ex[answer_column_name]["text"]]
                     }
-            references.append(ex_dict)
+                references.append(ex_dict)
+            # else:
+                # ex_dict["answers"] = {}
 
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 

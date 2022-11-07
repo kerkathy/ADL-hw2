@@ -9,9 +9,9 @@ python3.9 question_answering.py \
   --cache_dir ./qa/bert-base \
   --overwrite_output_dir \
   --evaluation_strategy steps \
-  --eval_steps 100 \
-  --logging_steps 500 \
-  --save_steps 500 \
+  --eval_steps 1000 \
+  --logging_steps 1000 \
+  --save_steps 1000 \
   --per_device_train_batch_size 3 \
   --per_device_eval_batch_size 3 \
   --gradient_accumulation_steps 4 \
