@@ -1,22 +1,17 @@
 python3.9 question_answering.py \
-  --model_name_or_path qa/bert-base \
-  --context_file data/context.json \
-  --test_file data/test.json \
+  --model_name_or_path qa/bert-base/archive \
   --do_predict \
-  --do_eval \
-  --evaluation_strategy steps \
-  --eval_steps 100 \
+  --context_file data/context.json \
+  --test_file data/preprocessed_test.json \
+  --output_dir ./qa/bert-base/archive \
+  --cache_dir qa/bert-base/archive \
+  --overwrite_output_dir \
   --max_seq_length 512 \
-  --per_device_train_batch_size 1 \
   --per_device_eval_batch_size 1 \
   --gradient_accumulation_steps 2 \
   --learning_rate 3e-5 \
   --num_train_epochs 1 \
   --doc_stride 128 \
-  --logging_steps 50 \
-  --output_dir ./qa/bert-base \
-  --overwrite_output_dir \
-  --cache_dir ./qa/bert-base
   # --max_train_samples 100 \
   # --max_eval_samples 100 \
   #  \

@@ -1,23 +1,30 @@
 python3.9 question_answering.py \
   --model_name_or_path bert-base-chinese \
+  --do_train \
+  --do_eval \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
-  --do_train \
-  --do_eval \
+  --output_dir ./qa/bert-base \
+  --cache_dir ./qa/bert-base \
+  --overwrite_output_dir \
   --evaluation_strategy steps \
   --eval_steps 100 \
-  --max_seq_length 512 \
-  --per_device_train_batch_size 1 \
-  --per_device_eval_batch_size 1 \
-  --gradient_accumulation_steps 2 \
+  --logging_steps 500 \
+  --save_steps 500 \
+  --per_device_train_batch_size 3 \
+  --per_device_eval_batch_size 3 \
+  --gradient_accumulation_steps 4 \
   --learning_rate 3e-5 \
-  --num_train_epochs 1 \
   --doc_stride 128 \
-  --logging_steps 50 \
-  --output_dir ./qa/bert-base \
-  --overwrite_output_dir \
-  --cache_dir ./qa/bert-base
+  --num_train_epochs 3 \
+  --max_seq_length 512 \
+  --warmup_ratio 0.1 \
+  --max_seq_length 512 \
+  --load_best_model_at_end True \
+  --metric_for_best_model eval_loss \
+
+  # --logging_steps 100 \
   # --do_predict
   # --test_file data/test.json \
   # --max_train_samples 100 \

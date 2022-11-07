@@ -300,7 +300,7 @@ def main():
         if data_args.validation_file is not None:
             data_files["validation"] = data_args.validation_file
             extension = data_args.validation_file.split(".")[-1]
-        if data_args.test_file is not None and data_args.do_predict:
+        if data_args.test_file is not None and training_args.do_predict:
             data_files["test"] = data_args.test_file
             extension = data_args.test_file.split(".")[-1]
         raw_datasets = load_dataset(
@@ -589,6 +589,7 @@ def main():
             # During Feature creation dataset samples might increase, we will select required samples again
             max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
             predict_dataset = predict_dataset.select(range(max_predict_samples))
+    logger.info("Using ", training_args.device, " to train.")
 
     # Data collator
     # We have already padded to max length if the corresponding flag is True, otherwise we need to pad in the data
@@ -627,10 +628,11 @@ def main():
         for ex in examples:
             ex_dict = dict()
             ex_dict["id"] = ex["id"]
-            ex_dict["answers"] = {
-                'answer_start': [ex[answer_column_name][answer_start_column_name]],
-                'text' : [ex[answer_column_name]["text"]]
-                }
+            if training_args.do_eval:
+                ex_dict["answers"] = {
+                    'answer_start': [ex[answer_column_name][answer_start_column_name]],
+                    'text' : [ex[answer_column_name]["text"]]
+                    }
             references.append(ex_dict)
 
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)

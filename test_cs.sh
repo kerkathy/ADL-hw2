@@ -6,7 +6,7 @@ python context_selection.py \
   --test_file data/test.json \
   --max_length 512 \
   --per_device_eval_batch_size 2 \
-  --output_dir ./cs/macbert \
+  --output_dir ./cs/macbert-tmp \
   --cache_dir ./cache/ \
   --with_tracking \
   # --debug \

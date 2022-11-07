@@ -754,13 +754,21 @@ def main():
         if args.output_dir is not None:
             accelerator.wait_for_everyone()
             # with open(os.path.join(args.output_dir, "predict.json"), "w") as f:
-                # json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
+            #     json.dump({"eval_accuracy": eval_metric["accuracy"]}, f)
 
-            with open(f"{args.output_dir}/preprocessed_test.csv", 'w') as f:
+            data = []
+            for i, choice in enumerate(predict):
+                instance = {
+                    "id": raw_datasets["test"][i]["id"],
+                    "question": raw_datasets["test"][i]["question"],
+                    "relevant": raw_datasets["test"][i]["paragraphs"][choice]
+                }
+                data.append(instance)
+
+            with open(f"{args.output_dir}/preprocessed_test.json", 'w', encoding="utf-8") as f:
                 # TODO: 把test.json多加一列relevant
-                f.write('id,question,relevant\n')
-                for i, choice in enumerate(predict):
-                    f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["question"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
+                json.dump(data, f, ensure_ascii=False)
+                    # f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["question"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
 
 
 if __name__ == "__main__":

@@ -176,7 +176,8 @@ def postprocess_qa_predictions(
             predictions.append(min_null_prediction)
 
         # Use the offsets to gather the answer text in the original context.
-        context = contexts[example_index]
+        context = contexts[example["relevant"]]
+        # context = example["relevant"]
         # context = example["context"]
         for pred in predictions:
             offsets = pred.pop("offsets")
