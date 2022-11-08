@@ -76,11 +76,13 @@ class QuestionAnsweringTrainer(Trainer):
         return metrics
 
     def predict(self, predict_dataset, predict_examples, ignore_keys=None, metric_key_prefix: str = "test"):
+        # Only called when testing
         predict_dataloader = self.get_test_dataloader(predict_dataset)
 
         # Temporarily disable metric computation, we will do it in the loop here.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
+        metrics = None # no answer, thus no metric!!!
         eval_loop = self.prediction_loop if self.args.use_legacy_prediction_loop else self.evaluation_loop
         try:
             output = eval_loop(
@@ -98,11 +100,11 @@ class QuestionAnsweringTrainer(Trainer):
             return output
 
         predictions = self.post_process_function(predict_examples, predict_dataset, output.predictions, "predict")
-        metrics = self.compute_metrics(predictions)
+        # metrics = self.compute_metrics(predictions)
 
         # Prefix all keys with metric_key_prefix + '_'
-        for key in list(metrics.keys()):
-            if not key.startswith(f"{metric_key_prefix}_"):
-                metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+        # for key in list(metrics.keys()):
+        #     if not key.startswith(f"{metric_key_prefix}_"):
+        #         metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
         return PredictionOutput(predictions=predictions.predictions, label_ids=predictions.label_ids, metrics=metrics)

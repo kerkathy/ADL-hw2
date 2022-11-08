@@ -694,16 +694,16 @@ def main():
         logger.info("*** Predict ***")
         results = trainer.predict(predict_dataset, predict_examples)
         metrics = results.metrics
+        # Automatically creates predict_predictions.joson in output_dir
 
         max_predict_samples = (
             data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
         )
-        metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
+        # metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
-        trainer.log_metrics("predict", metrics)
-        trainer.save_metrics("predict", metrics)
+        # trainer.log_metrics("predict", metrics)
+        # trainer.save_metrics("predict", metrics)
 
-        #TODO: write file
 
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "question-answering"}
@@ -717,8 +717,8 @@ def main():
 
     if training_args.push_to_hub:
         trainer.push_to_hub(**kwargs)
-    else:
-        trainer.create_model_card(**kwargs)
+    # else:
+    #     trainer.create_model_card(**kwargs)
 
 
 def _mp_fn(index):

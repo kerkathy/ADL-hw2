@@ -1,10 +1,10 @@
 python3.9 question_answering.py \
-  --model_name_or_path qa/bert-base/checkpoint-11500 \
+  --model_name_or_path qa/bert-base/checkpoint-34000 \
   --do_predict \
   --context_file data/context.json \
   --test_file data/preprocessed_test.json \
-  --output_dir ./qa/bert-base/checkpoint-11500 \
-  --cache_dir qa/bert-base/checkpoint-11500 \
+  --output_dir ./qa/bert-base/checkpoint-34000 \
+  --cache_dir qa/bert-base/checkpoint-34000 \
   --overwrite_output_dir \
   --max_seq_length 512 \
   --per_device_eval_batch_size 1 \
