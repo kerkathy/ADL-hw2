@@ -1,10 +1,10 @@
 python3.9 question_answering.py \
-  --model_name_or_path qa/bert-base/checkpoint-34000 \
+  --model_name_or_path qa/roberta \
   --do_predict \
   --context_file data/context.json \
   --test_file data/preprocessed_test.json \
-  --output_dir ./qa/bert-base/checkpoint-34000 \
-  --cache_dir qa/bert-base/checkpoint-34000 \
+  --output_dir qa/roberta \
+  --cache_dir qa/roberta \
   --overwrite_output_dir \
   --max_seq_length 512 \
   --per_device_eval_batch_size 1 \
@@ -17,4 +17,3 @@ python3.9 question_answering.py \
   #  \
   # --model_name_or_path bert-base-chinese \
   # --model_name_or_path qa/bert-base \
-# chinese-roberta-wwm-ext-large

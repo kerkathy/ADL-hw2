@@ -9,11 +9,11 @@ python3.9 question_answering.py \
   --cache_dir ./qa/bert-base \
   --overwrite_output_dir \
   --evaluation_strategy steps \
-  --eval_steps 1000 \
-  --logging_steps 1000 \
-  --save_steps 1000 \
-  --per_device_train_batch_size 3 \
-  --per_device_eval_batch_size 3 \
+  --eval_steps 2000 \
+  --logging_steps 2000 \
+  --save_steps 2000 \
+  --per_device_train_batch_size 2 \
+  --per_device_eval_batch_size 2 \
   --gradient_accumulation_steps 4 \
   --learning_rate 3e-5 \
   --doc_stride 128 \
@@ -22,7 +22,7 @@ python3.9 question_answering.py \
   --warmup_ratio 0.1 \
   --max_seq_length 512 \
   --load_best_model_at_end True \
-  --metric_for_best_model eval_loss \
+  --metric_for_best_model exact_match \
 
   # --logging_steps 100 \
   # --do_predict

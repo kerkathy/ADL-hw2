@@ -1,6 +1,6 @@
 python context_selection.py \
   --do_train \
-  --model_name_or_path hfl/chinese-roberta-wwm-ext \
+  --model_name_or_path bert-base-chinese \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
@@ -10,13 +10,13 @@ python context_selection.py \
   --learning_rate 3e-5 \
   --weight_decay 0.0 \
   --lr_scheduler_type linear \
-  --num_warmup_steps 0 \
-  --gradient_accumulation_steps 16 \
+  --gradient_accumulation_steps 2 \
   --num_train_epochs 1 \
-  --checkpointing_steps 50 \
-  --output_dir ./cs/roberta2 \
+  --checkpointing_steps 500 \
+  --output_dir ./cs/bert_nopretrain \
   --cache_dir ./cache/ \
   --with_tracking \
+  --no_pretrain \
   # --debug \
   # --do_predict
   # --test_file data/test.json \

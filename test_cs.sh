@@ -3,6 +3,7 @@ python context_selection.py \
   --model_type bert \
   --model_name_or_path cs/macbert/ \
   --context_file data/context.json \
+  # --context_file ${1} \
   --test_file data/test.json \
   --max_length 512 \
   --per_device_eval_batch_size 2 \

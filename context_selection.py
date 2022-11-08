@@ -228,6 +228,11 @@ def parse_args():
             "Only applicable when `--with_tracking` is passed."
         ),
     )
+    parser.add_argument(
+        "--no_pretrain",
+        action="store_true",
+        help="Whether to load pretrained model weight.",
+    )
     args = parser.parse_args()
 
     if args.push_to_hub:
@@ -423,16 +428,21 @@ def main():
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
 
-    if args.model_name_or_path:
+
+    if args.no_pretrain or not args.model_name_or_path:
+        logger.info("Training new model from scratch")
+        model = AutoModelForMultipleChoice.from_config(config)
+    # if args.model_name_or_path:
+    else:
         model = AutoModelForMultipleChoice.from_pretrained(
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
             cache_dir=args.cache_dir,
         )
-    else:
-        logger.info("Training new model from scratch")
-        model = AutoModelForMultipleChoice.from_config(config)
+    # else:
+    #     logger.info("Training new model from scratch")
+    #     model = AutoModelForMultipleChoice.from_config(config)
 
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
@@ -766,9 +776,7 @@ def main():
                 data.append(instance)
 
             with open(f"{args.output_dir}/preprocessed_test.json", 'w', encoding="utf-8") as f:
-                # TODO: 把test.json多加一列relevant
                 json.dump(data, f, ensure_ascii=False)
-                    # f.write(f'{raw_datasets["test"][i]["id"]},{raw_datasets["test"][i]["question"]},{raw_datasets["test"][i]["paragraphs"][choice]}\n')
 
 
 if __name__ == "__main__":
