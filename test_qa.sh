@@ -1,10 +1,10 @@
 python3.9 question_answering.py \
-  --model_name_or_path qa/roberta \
+  --model_name_or_path qa/macbert \
   --do_predict \
-  --context_file data/context.json \
-  --test_file data/preprocessed_test.json \
-  --output_dir qa/roberta \
-  --cache_dir qa/roberta \
+  --context_file ${1} \
+  --test_file preprocessed_test.json \
+  --output_dir result/macbert \
+  --cache_dir result/macbert \
   --overwrite_output_dir \
   --max_seq_length 512 \
   --per_device_eval_batch_size 1 \
@@ -17,3 +17,4 @@ python3.9 question_answering.py \
   #  \
   # --model_name_or_path bert-base-chinese \
   # --model_name_or_path qa/bert-base \
+  # --context_file data/context.json \

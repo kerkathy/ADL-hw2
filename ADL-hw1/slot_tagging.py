@@ -18,6 +18,7 @@ Fine-tuning the library models for token classification.
 """
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
+# from: https://github.com/huggingface/transformers/blob/main/examples/pytorch/token-classification/run_ner.py
 
 import logging
 import os
@@ -49,7 +50,7 @@ from transformers.utils.versions import require_version
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.25.0.dev0")
+# check_min_version("4.25.0.dev0")
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 
@@ -281,16 +282,18 @@ def main():
         data_files = {}
         if data_args.train_file is not None:
             data_files["train"] = data_args.train_file
+            extension = data_args.train_file.split(".")[-1]
         if data_args.validation_file is not None:
             data_files["validation"] = data_args.validation_file
+            extension = data_args.validation_file.split(".")[-1]
         if data_args.test_file is not None:
             data_files["test"] = data_args.test_file
-        extension = data_args.train_file.split(".")[-1]
+            extension = data_args.test_file.split(".")[-1]
         raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
-    # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
-    if training_args.do_train:
+    if data_args.train_file is not None:
+    # if training_args.do_train:
         column_names = raw_datasets["train"].column_names
         features = raw_datasets["train"].features
     else:
@@ -328,8 +331,10 @@ def main():
         label_list = features[label_column_name].feature.names
         label_to_id = {i: i for i in range(len(label_list))}
     else:
-        label_list = get_label_list(raw_datasets["train"][label_column_name])
+        label_src = "train" if "train" in raw_datasets else "validation"
+        label_list = get_label_list(raw_datasets[label_src][label_column_name])
         label_to_id = {l: i for i, l in enumerate(label_list)}
+        # e.g., {"O": 0, 'B-people': 1, 'I-people': 2}
 
     num_labels = len(label_list)
 
@@ -338,6 +343,7 @@ def main():
     # Distributed training:
     # The .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
+    # TODO: finetuing task? default ner
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         num_labels=num_labels,
@@ -387,6 +393,7 @@ def main():
     # Model has labels -> use them.
     if model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id:
         if list(sorted(model.config.label2id.keys())) == list(sorted(label_list)):
+            # If labels in our dataset matches labels from pretrained model
             # Reorganize `label_list` to match the ordering of the model.
             if labels_are_int:
                 label_to_id = {i: int(model.config.label2id[l]) for i, l in enumerate(label_list)}
@@ -395,6 +402,8 @@ def main():
                 label_list = [model.config.id2label[i] for i in range(num_labels)]
                 label_to_id = {l: i for i, l in enumerate(label_list)}
         else:
+            # If labels in our dataset does NOT matches labels from pretrained model,
+            # Use the ones in our dataset
             logger.warning(
                 "Your model seems to have been trained with labels, but they don't match the dataset: ",
                 f"model labels: {list(sorted(model.config.label2id.keys()))}, dataset labels:"
@@ -505,40 +514,66 @@ def main():
     data_collator = DataCollatorForTokenClassification(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
 
     # Metrics
-    metric = evaluate.load("seqeval")
+    # metric = evaluate.load("seqeval")
 
     def compute_metrics(p):
         predictions, labels = p
         predictions = np.argmax(predictions, axis=2)
+        print("predictions", predictions)
+        print("labels", labels)
 
         # Remove ignored index (special tokens)
-        true_predictions = [
-            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
-        true_labels = [
-            [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
+        # list of list of labels, convert to np arr so that accuracy can be calculated
+        token_acc = 0
+        sent_acc = 0
+        token_cnt = 0
+        for prediction, label in zip(predictions, labels):
+            print("prediction: ", prediction)
+            print("label: ", label)
+            for (p, l) in zip(prediction, label):
+                if l != -100:
+                    token_cnt += 1
+                    if label_list[p] == label_list[l]:
+                        token_acc += 1
+            if (token_cnt - token_acc) == 0:
+                sent_acc += 1
+        token_acc /= token_cnt
+        sent_acc /= len(prediction)
 
-        results = metric.compute(predictions=true_predictions, references=true_labels)
-        if data_args.return_entity_level_metrics:
-            # Unpack nested dictionaries
-            final_results = {}
-            for key, value in results.items():
-                if isinstance(value, dict):
-                    for n, v in value.items():
-                        final_results[f"{key}_{n}"] = v
-                else:
-                    final_results[key] = value
-            return final_results
-        else:
-            return {
-                "precision": results["overall_precision"],
-                "recall": results["overall_recall"],
-                "f1": results["overall_f1"],
-                "accuracy": results["overall_accuracy"],
-            }
+        # true_predictions = [
+        #     [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+        #     for prediction, label in zip(predictions, labels)
+        # ]
+        # true_labels = [
+        #     [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
+        #     for prediction, label in zip(predictions, labels)
+        # ]
+        # print("true_predictions", true_predictions)
+        # print("true_labels", true_labels)
+        # print(true_labels.shape, true_predictions.shape)
+        # sentence accuracy
+        # sent_acc = len(np.where((true_predictions==true_labels).all(axis=1))[0]) / true_predictions.shape[0]
+        # token_acc = (true_predictions==true_labels).sum() / true_predictions.shape[0] / true_predictions.shape[1]
+        return {"sentence_accuracy": sent_acc, "token_accuracy": token_acc}
+
+        # results = metric.compute(predictions=true_predictions, references=true_labels)
+        # if data_args.return_entity_level_metrics:
+        #     # Unpack nested dictionaries
+        #     final_results = {}
+        #     for key, value in results.items():
+        #         if isinstance(value, dict):
+        #             for n, v in value.items():
+        #                 final_results[f"{key}_{n}"] = v
+        #         else:
+        #             final_results[key] = value
+        #     return final_results
+        # else:
+        #     return {
+        #         "precision": results["overall_precision"],
+        #         "recall": results["overall_recall"],
+        #         "f1": results["overall_f1"],
+        #         "accuracy": results["overall_accuracy"],
+        #     }
 
     # Initialize our Trainer
     trainer = Trainer(
@@ -617,8 +652,8 @@ def main():
 
     if training_args.push_to_hub:
         trainer.push_to_hub(**kwargs)
-    else:
-        trainer.create_model_card(**kwargs)
+    # else:
+    #     trainer.create_model_card(**kwargs)
 
 
 def _mp_fn(index):

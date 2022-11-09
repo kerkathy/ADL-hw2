@@ -296,6 +296,7 @@ def main():
         # when you use `do_predict` without specifying a GLUE benchmark task.
         if training_args.do_predict and data_args.test_file is not None:
             data_files = {"test": data_args.test_file}
+            # Need train or validation file to fetch the indice of label
             if data_args.train_file is not None:
                 data_files_foridx = {"train": data_args.train_file}
             elif data_args.validation_file is not None:

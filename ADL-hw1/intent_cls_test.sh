@@ -9,3 +9,4 @@ python intent_classification.py \
   --overwrite_output_dir \
   # --max_predict_samples 100
 #  above are for debugging
+# Don't forget to provide at least train or eval file, for the sake of label fetching

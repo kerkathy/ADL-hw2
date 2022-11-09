@@ -279,10 +279,6 @@ class DataCollatorForMultipleChoice:
 
     def __call__(self, features):
         label_name = "label" if "label" in features[0].keys() else "labels"
-        # flag = False
-        # if label_name in features[0]:
-        #     flag = True
-        # labels = [feature.pop(label_name) for feature in features if label_name in feature]
         labels = [feature.pop(label_name) for feature in features]
         batch_size = len(features)
         num_choices = len(features[0]["input_ids"])
