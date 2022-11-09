@@ -14,7 +14,7 @@ download.sh
 ```
 A folder `model` containing models for each task should be created by now. 
 ## Predict
-Run the script. What we actually do in script is to run context selection first, which generates an intermediate file `preprocess_test.json` in current working directory. Then, the file will be the input for question answering.
+Run the script `run.sh`. What we actually do in script is to run context selection first, which generates an intermediate file `preprocess_test.json` in current working directory. Then, the file will be the input for question answering.
 ```
 run.sh /path/to/context.json /path/to/test.json /path/to/output.json
 ```
