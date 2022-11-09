@@ -5,8 +5,8 @@ python3.9 question_answering.py \
   --context_file data/context.json \
   --train_file data/train.json \
   --validation_file data/valid.json \
-  --output_dir ./qa/bert-base \
-  --cache_dir ./qa/bert-base \
+  --output_dir result/qa \
+  --cache_dir cache \
   --overwrite_output_dir \
   --evaluation_strategy steps \
   --eval_steps 2000 \
