@@ -1,0 +1,1 @@
+run.sh ../data/context.json ../data/test.json result/testing/predict.csv
