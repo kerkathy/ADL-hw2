@@ -10,13 +10,13 @@ All commands shall be run in this environment (or the environment that contains 
 ## Download
 Download large files, i.e. trained models weights.
 ```
-download.sh
+(adl-hw2) download.sh
 ```
 A folder `model` containing models for each task should be created by now. 
 ## Predict
 Run the script `run.sh`. What we actually do in script is to run context selection first, which generates an intermediate file `preprocess_test.json` in current working directory. Then, the file will be the input for question answering.
 ```
-run.sh /path/to/context.json /path/to/test.json /path/to/output.json
+(adl-hw2) run.sh /path/to/context.json /path/to/test.json /path/to/output.json
 ```
 Finally, you can find the prediction at `/path/to/output.json`.
 ## Reproduce Training Result
@@ -52,21 +52,21 @@ All model weights and evaluation results will be saved in respective directory u
 ### Context selection
 Results saved in `./result/cs`.
 ```
-src/cs/train.sh
+(adl-hw2) src/cs/train.sh
 ```
 
 ### Question Answering
 Results saved in `./result/qa`.
 ```
-src/qa/train_extlarge.sh
+(adl-hw2) src/qa/train_extlarge.sh
 ```
 ### Intent Classification
 Results saved in `./result/intent`.
 ```
-src/intent/intent_cls_train.sh
+(adl-hw2) src/intent/intent_cls_train.sh
 ```
 ### Slot Tagging
 Results saved in `./result/slot`.
 ```
-src/slot/slot_tag_train.sh
+(adl-hw2) src/slot/slot_tag_train.sh
 ```
