@@ -1,4 +1,4 @@
-python context_selection.py \
+python src/cs/context_selection.py \
   --do_train \
   --model_name_or_path hfl/chinese-roberta-wwm-ext \
   --context_file data/context.json \
@@ -13,8 +13,8 @@ python context_selection.py \
   --gradient_accumulation_steps 4 \
   --num_train_epochs 1 \
   --checkpointing_steps 2000 \
-  --output_dir ../../result/cs/roberta \
-  --cache_dir tmp/cache/ \
+  --output_dir result/cs/roberta \
+  --cache_dir cache/ \
   # --with_tracking \
   # --no_pretrain \
   # --debug \

@@ -23,6 +23,7 @@ Fine-tuning the library models for token classification.
 import logging
 import os
 import sys
+import csv
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -279,23 +280,56 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
     else:
-        data_files = {}
-        if data_args.train_file is not None:
-            data_files["train"] = data_args.train_file
-            extension = data_args.train_file.split(".")[-1]
-        if data_args.validation_file is not None:
-            data_files["validation"] = data_args.validation_file
-            extension = data_args.validation_file.split(".")[-1]
-        if data_args.test_file is not None:
-            data_files["test"] = data_args.test_file
+        # TODO: 改!!
+        if training_args.do_train:
+            data_files = {}
+            if data_args.train_file:
+                data_files["train"] = data_args.train_file
+                extension = data_args.train_file.split(".")[-1]
+            if data_args.validation_file:
+                data_files["validation"] = data_args.validation_file
+            else:
+                raise ValueError("Need either a GLUE task or a train file for `do_train`.")
+        if training_args.do_predict and data_args.test_file is not None:
+            data_files = {"test": data_args.test_file}
             extension = data_args.test_file.split(".")[-1]
+            # Need train or validation file to fetch the indice of label
+            if data_args.train_file is not None:
+                data_files_foridx = {"train": data_args.train_file}
+            elif data_args.validation_file is not None:
+                data_files_foridx = {"validation": data_args.validation_file}
+                # train_extension = data_args.train_file.split(".")[-1]
+                # test_extension = data_args.test_file.split(".")[-1]
+                # assert (
+                #     test_extension == train_extension
+                # ), "`test_file` should have the same extension (csv or json) as `train_file`."
+            else:
+                raise ValueError("Need either a GLUE task or a test file, plus test or eval file, for `do_predict`.")
+
         raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
+        if training_args.do_predict:
+            raw_datasets_foridx = load_dataset(extension, data_files=data_files_foridx, cache_dir=model_args.cache_dir)
+        # data_files = {}
+        # if training_args.do_train:
+        #     if data_args.train_file is not None:
+        #         data_files["train"] = data_args.train_file
+        #         extension = data_args.train_file.split(".")[-1]
+        #     if data_args.validation_file is not None:
+        #         data_files["validation"] = data_args.validation_file
+        #         extension = data_args.validation_file.split(".")[-1]
+        # if data_args.test_file is not None:
+        #     data_files["test"] = data_args.test_file
+        #     extension = data_args.test_file.split(".")[-1]
+            
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
     if data_args.train_file is not None:
-    # if training_args.do_train:
-        column_names = raw_datasets["train"].column_names
-        features = raw_datasets["train"].features
+        if training_args.do_train:
+            column_names = raw_datasets["train"].column_names
+            features = raw_datasets["train"].features
+        elif training_args.do_predict:
+            column_names = raw_datasets_foridx["train"].column_names
+            features = raw_datasets_foridx["train"].features
     else:
         column_names = raw_datasets["validation"].column_names
         features = raw_datasets["validation"].features
@@ -331,8 +365,8 @@ def main():
         label_list = features[label_column_name].feature.names
         label_to_id = {i: i for i in range(len(label_list))}
     else:
-        label_src = "train" if "train" in raw_datasets else "validation"
-        label_list = get_label_list(raw_datasets[label_src][label_column_name])
+        label_list = get_label_list(raw_datasets_foridx["train"][label_column_name]) if training_args.do_predict \
+                    else get_label_list(raw_datasets["train"][label_column_name])
         label_to_id = {l: i for i, l in enumerate(label_list)}
         # e.g., {"O": 0, 'B-people': 1, 'I-people': 2}
 
@@ -436,30 +470,58 @@ def main():
             # We use this argument because the texts in our dataset are lists of words (with a label for each word).
             is_split_into_words=True,
         )
-        labels = []
-        for i, label in enumerate(examples[label_column_name]):
-            word_ids = tokenized_inputs.word_ids(batch_index=i)
-            previous_word_idx = None
-            label_ids = []
-            for word_idx in word_ids:
-                # Special tokens have a word id that is None. We set the label to -100 so they are automatically
-                # ignored in the loss function.
-                if word_idx is None:
-                    label_ids.append(-100)
-                # We set the label for the first token of each word.
-                elif word_idx != previous_word_idx:
-                    label_ids.append(label_to_id[label[word_idx]])
-                # For the other tokens in a word, we set the label to either the current label or -100, depending on
-                # the label_all_tokens flag.
-                else:
-                    if data_args.label_all_tokens:
-                        label_ids.append(b_to_i_label[label_to_id[label[word_idx]]])
-                    else:
+        if label_column_name in examples:
+            labels = []
+            for i, label in enumerate(examples[label_column_name]):
+                word_ids = tokenized_inputs.word_ids(batch_index=i)
+                previous_word_idx = None
+                label_ids = []
+                for word_idx in word_ids:
+                    # Special tokens have a word id that is None. We set the label to -100 so they are automatically
+                    # ignored in the loss function.
+                    if word_idx is None:
                         label_ids.append(-100)
-                previous_word_idx = word_idx
+                    # We set the label for the first token of each word.
+                    elif word_idx != previous_word_idx:
+                        label_ids.append(label_to_id[label[word_idx]])
+                    # For the other tokens in a word, we set the label to either the current label or -100, depending on
+                    # the label_all_tokens flag.
+                    else:
+                        if data_args.label_all_tokens:
+                            label_ids.append(b_to_i_label[label_to_id[label[word_idx]]])
+                        else:
+                            label_ids.append(-100)
+                    previous_word_idx = word_idx
 
-            labels.append(label_ids)
-        tokenized_inputs["labels"] = labels
+                labels.append(label_ids)
+            tokenized_inputs["labels"] = labels
+        else:
+            # for predict, make a mask
+            masks = []
+            for i, label in enumerate(examples[text_column_name]):
+                word_ids = tokenized_inputs.word_ids(batch_index=i)
+                previous_word_idx = None
+                mask = []
+                for word_idx in word_ids:
+                    # Special tokens have a word id that is None. We set the label to -100 so they are automatically
+                    # ignored in the loss function.
+                    if word_idx is None:
+                        mask.append(-100)
+                    # We set the label for the first token of each word.
+                    elif word_idx != previous_word_idx:
+                        mask.append(1)
+                    # For the other tokens in a word, we set the label to either the current label or -100, depending on
+                    # the label_all_tokens flag.
+                    else:
+                        if data_args.label_all_tokens:
+                            mask.append(1)
+                        else:
+                            mask.append(-100)
+                    previous_word_idx = word_idx
+
+                masks.append(mask)
+            tokenized_inputs["labels"] = masks
+
         return tokenized_inputs
 
     if training_args.do_train:
@@ -509,6 +571,8 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on prediction dataset",
             )
+        # print(predict_dataset)
+        # exit(0)
 
     # Data collator
     data_collator = DataCollatorForTokenClassification(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
@@ -519,26 +583,26 @@ def main():
     def compute_metrics(p):
         predictions, labels = p
         predictions = np.argmax(predictions, axis=2)
-        print("predictions", predictions)
-        print("labels", labels)
 
         # Remove ignored index (special tokens)
         # list of list of labels, convert to np arr so that accuracy can be calculated
         token_acc = 0
         sent_acc = 0
         token_cnt = 0
+        flag = True
         for prediction, label in zip(predictions, labels):
-            print("prediction: ", prediction)
-            print("label: ", label)
             for (p, l) in zip(prediction, label):
                 if l != -100:
                     token_cnt += 1
-                    if label_list[p] == label_list[l]:
+                    if p == l:
                         token_acc += 1
-            if (token_cnt - token_acc) == 0:
+                    else:
+                        flag = False
+            if flag:
                 sent_acc += 1
+            flag = True
         token_acc /= token_cnt
-        sent_acc /= len(prediction)
+        sent_acc /= len(predictions)
 
         # true_predictions = [
         #     [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
@@ -624,6 +688,7 @@ def main():
 
         predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
         predictions = np.argmax(predictions, axis=2)
+        # print(predictions)
 
         # Remove ignored index (special tokens)
         true_predictions = [
@@ -631,15 +696,21 @@ def main():
             for prediction, label in zip(predictions, labels)
         ]
 
-        trainer.log_metrics("predict", metrics)
-        trainer.save_metrics("predict", metrics)
+        # trainer.log_metrics("predict", metrics)
+        # trainer.save_metrics("predict", metrics)
 
         # Save predictions
-        output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
+        output_predictions_file = os.path.join(training_args.output_dir, "predictions.csv")
         if trainer.is_world_process_zero():
-            with open(output_predictions_file, "w") as writer:
-                for prediction in true_predictions:
-                    writer.write(" ".join(prediction) + "\n")
+            with open(output_predictions_file, "w") as f:
+                writer = csv.writer(f, delimiter=' ')
+                f.write('id,tags\n')
+                for index, pred in enumerate(true_predictions):
+                    id = predict_dataset["id"][index]
+                    f.write('{},'.format(id))
+                    writer.writerow(pred)
+        logger.info(f"*** Written results to {output_predictions_file} ***")
+
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "token-classification"}
     if data_args.dataset_name is not None:

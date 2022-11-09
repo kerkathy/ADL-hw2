@@ -1,4 +1,4 @@
-python3.9 question_answering.py \
+python3.9 src/qa/question_answering.py \
   --model_name_or_path hfl/chinese-roberta-wwm-ext-large \
   --do_train \
   --do_eval \
@@ -18,9 +18,9 @@ python3.9 question_answering.py \
   --num_train_epochs 3 \
   --doc_stride 128 \
   --logging_steps 2000 \
-  --output_dir ./qa/macbert \
+  --output_dir result/qa/macbert \
   --overwrite_output_dir \
-  --cache_dir ./qa/macbert \
+  --cache_dir cache \
   --metric_for_best_model exact_match \
   --load_best_model_at_end True \
   --report_to tensorboard

@@ -302,7 +302,7 @@ def main():
             elif data_args.validation_file is not None:
                 data_files_foridx = {"validation": data_args.validation_file}
                 # train_extension = data_args.train_file.split(".")[-1]
-                test_extension = data_args.test_file.split(".")[-1]
+                # test_extension = data_args.test_file.split(".")[-1]
                 # assert (
                 #     test_extension == train_extension
                 # ), "`test_file` should have the same extension (csv or json) as `train_file`."
@@ -326,12 +326,13 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
         # For testing, since test set don't have labels
-        raw_datasets_foridx = load_dataset(
-            "json",
-            data_files=data_files_foridx,
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
+        if training_args.do_predict:
+            raw_datasets_foridx = load_dataset(
+                "json",
+                data_files=data_files_foridx,
+                cache_dir=model_args.cache_dir,
+                use_auth_token=True if model_args.use_auth_token else None,
+            )
         # if data_args.train_file.endswith(".csv"):
         #     # Loading a dataset from local csv files
         #     raw_datasets = load_dataset(

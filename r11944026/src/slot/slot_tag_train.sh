@@ -1,4 +1,4 @@
-python slot_tagging.py \
+python src/slot/slot_tagging.py \
   --model_name_or_path bert-base-uncased \
   --train_file data/slot/train.json \
   --validation_file data/slot/eval.json \
@@ -14,7 +14,7 @@ python slot_tagging.py \
   --learning_rate 2e-5 \
   --num_train_epochs 8 \
   --label_column_name tags \
-  --output_dir result/slot/train \
+  --output_dir result/slot \
   --overwrite_output_dir \
   --load_best_model_at_end True \
   --metric_for_best_model sentence_accuracy \

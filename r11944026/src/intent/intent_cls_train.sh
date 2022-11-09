@@ -1,4 +1,4 @@
-python intent_classification.py \
+python src/intent/intent_classification.py \
   --model_name_or_path bert-base-cased \
   --train_file data/intent/train.json \
   --validation_file data/intent/eval.json \
@@ -19,5 +19,4 @@ python intent_classification.py \
   # --max_eval_samples 100 \
 #   above two are for debugging
   # --do_predict \
-  # --test_file data/intent/test.json \
   # --max_predict_samples 100

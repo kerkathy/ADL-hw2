@@ -7,6 +7,7 @@ python slot_tagging.py \
   --label_column_name tags \
   --output_dir result/slot/test \
   --overwrite_output_dir \
+  --cache_dir cache
 #   --max_train_samples 5 \
 #   --max_eval_samples 5 \
 #   --cache_dir  \
