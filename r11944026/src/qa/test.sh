@@ -11,7 +11,6 @@ python3.9 src/qa/question_answering.py \
   --learning_rate 3e-5 \
   --num_train_epochs 1 \
   --doc_stride 128 \
-  # num_train_epoch 要不要刪掉??
   # --cache_dir ../../cache \
   # --max_train_samples 100 \
   # --max_eval_samples 100 \

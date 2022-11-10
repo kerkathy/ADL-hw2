@@ -2,9 +2,9 @@ python3.9 src/qa/question_answering.py \
   --model_name_or_path hfl/chinese-roberta-wwm-ext-large \
   --do_train \
   --do_eval \
-  --context_file data/context.json \
-  --train_file data/train.json \
-  --validation_file data/valid.json \
+  --context_file data/cs_and_qa/context.json \
+  --train_file data/cs_and_qa/train.json \
+  --validation_file data/cs_and_qa/valid.json \
   --evaluation_strategy steps \
   --eval_steps 2000 \
   --logging_steps 2000 \

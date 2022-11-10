@@ -1,9 +1,9 @@
 python src/cs/context_selection.py \
   --do_train \
   --model_name_or_path hfl/chinese-roberta-wwm-ext \
-  --context_file data/context.json \
-  --train_file data/train.json \
-  --validation_file data/valid.json \
+  --context_file data/cs_and_qa/context.json \
+  --train_file data/cs_and_qa/train.json \
+  --validation_file data/cs_and_qa/valid.json \
   --max_length 512 \
   --per_device_train_batch_size 2 \
   --per_device_eval_batch_size 2 \

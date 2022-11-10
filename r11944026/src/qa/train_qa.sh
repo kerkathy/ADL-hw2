@@ -2,9 +2,9 @@ python3.9 question_answering.py \
   --model_name_or_path bert-base-chinese \
   --do_train \
   --do_eval \
-  --context_file data/context.json \
-  --train_file data/train.json \
-  --validation_file data/valid.json \
+  --context_file data/cs_and_qa/context.json \
+  --train_file data/cs_and_qa/train.json \
+  --validation_file data/cs_and_qa/valid.json \
   --output_dir result/qa \
   --cache_dir cache \
   --overwrite_output_dir \

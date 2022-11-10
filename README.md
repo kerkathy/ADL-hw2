@@ -30,10 +30,19 @@ Before you start training, please make sure the following file structure exists.
    |---qa
    |---slot
    |-data
-   |---context.json
-   |---train.json
-   |---valid.json
-   |---test.json
+   |---cs_and_qa
+   |-----context.json
+   |-----train.json
+   |-----valid.json
+   |-----test.json
+   |---intent
+   |-----train.json
+   |-----eval.json
+   |-----test.json
+   |---slot
+   |-----train.json
+   |-----eval.json
+   |-----test.json
    |-model
    |---cs
    |-----bert
