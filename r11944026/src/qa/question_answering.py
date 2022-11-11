@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import datasets
-from datasets import load_dataset
+from datasets import load_dataset, load_metric
 
 import evaluate
 import transformers
@@ -624,6 +624,11 @@ def main():
         else:
             formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
 
+        # if stage == "predict":
+        #     with open(training_args.output_dir + "/predict_predictions.json", "w") as f:
+        #         json.dump(predictions, f)
+        #     logger.info("Written files to", training_args.output_dir + "/predict_predictions.json")
+
         references = []
         for ex in examples:
             ex_dict = dict()
@@ -639,7 +644,10 @@ def main():
 
         return EvalPrediction(predictions=formatted_predictions, label_ids=references)
 
-    metric = evaluate.load("squad_v2" if data_args.version_2_with_negative else "squad")
+    # if not training_args.do_predict:
+    # metric = evaluate.load("./src/qa/squad_v2.py")
+    metric = load_metric("./src/qa/squad_v2.py")
+    # metric = evaluate.load("squad_v2" if data_args.version_2_with_negative else "squad")
 
     def compute_metrics(p: EvalPrediction):
         # print("In compute metric, prediction : ", p.predictions,"; label_ids : ", p.label_ids)
@@ -655,7 +663,8 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         post_process_function=post_processing_function,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics ,
+        # compute_metrics=compute_metrics if not training_args.do_predict else None ,
     )
 
     # Training
@@ -692,18 +701,22 @@ def main():
     # Prediction
     if training_args.do_predict:
         logger.info("*** Predict ***")
+        # _ = trainer.predict(predict_dataset, predict_examples)
         results = trainer.predict(predict_dataset, predict_examples)
-        metrics = results.metrics
+        # predictions = results.predictions
+        # data = dict()
+        # for prediction in predictions:
+        #     data[prediction["id"]] = prediction[""]
+        # metrics = results.metrics
         # Automatically creates predict_predictions.joson in output_dir
 
-        max_predict_samples = (
-            data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
-        )
+        # max_predict_samples = (
+        #     data_args.max_predict_samples if data_args.max_predict_samples is not None else len(predict_dataset)
+        # )
         # metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
         # trainer.log_metrics("predict", metrics)
         # trainer.save_metrics("predict", metrics)
-
 
 
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "question-answering"}

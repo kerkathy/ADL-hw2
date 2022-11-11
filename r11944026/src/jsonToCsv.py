@@ -25,6 +25,7 @@ with open(f"{sys.argv[2]}", 'w') as f:
     for k, v in data.items():
         writer.writerow([k,v])
 
+print(f"[jsonToCsv.py] Saving processed result to {sys.argv[2]}.")
 
 # filename = sys.argv[1]
 # new_filename = sys.argv[2]

@@ -29,6 +29,7 @@ Before you start training, please make sure the following file structure exists.
    |---intent
    |---qa
    |---slot
+   |---jsonToCsv.py
    |-data
    |---cs_and_qa
    |-----context.json

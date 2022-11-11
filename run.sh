@@ -13,4 +13,4 @@
 
 ./test_cs.sh ${1} ${2}
 ./test_qa.sh ${1}
-python3.9 jsonToCsv.py result/macbert/predict_predictions.json ${3}
+python3.9 jsonToCsv.py ./predict_predictions.json ${3}

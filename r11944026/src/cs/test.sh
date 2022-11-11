@@ -5,10 +5,10 @@ python src/cs/context_selection.py \
   --context_file ${1} \
   --test_file ${2} \
   --max_length 512 \
-  --per_device_eval_batch_size 2 \
   --output_dir . \
+  --per_device_eval_batch_size 2 \
+  # --debug \
   # --cache_dir ./cache/ \
   # --with_tracking \
   # --context_file data/context.json \
   # --test_file data/test.json \
-  # --debug \

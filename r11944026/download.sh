@@ -1,2 +1,2 @@
-wget https://www.dropbox.com/s/b7ooa6dykvwlmvg/ADL-hw2.zip
-unzip ADL-hw2.zip
+wget https://www.dropbox.com/s/o16aph1u1u6sdov/ADL-HW2.zip
+unzip ADL-HW2.zip
