@@ -1,7 +1,7 @@
 python src/cs/context_selection.py \
   --do_predict \
   --model_type bert \
-  --model_name_or_path model/cs/roberta \
+  --model_name_or_path model/cs \
   --context_file ${1} \
   --test_file ${2} \
   --max_length 512 \
