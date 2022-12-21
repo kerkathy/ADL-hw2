@@ -36,8 +36,6 @@ Before you start training, please make sure the following file structure exists.
    |---test.json
    |-model
    |---cs
-   |-----bert
-   |-----roberta
    |---intent
    |---qa
    |---slot

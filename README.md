@@ -29,25 +29,13 @@ Before you start training, please make sure the following file structure exists.
    |---intent
    |---qa
    |---slot
-   |---jsonToCsv.py
    |-data
-   |---cs_and_qa
-   |-----context.json
-   |-----train.json
-   |-----valid.json
-   |-----test.json
-   |---intent
-   |-----train.json
-   |-----eval.json
-   |-----test.json
-   |---slot
-   |-----train.json
-   |-----eval.json
-   |-----test.json
+   |---context.json
+   |---train.json
+   |---valid.json
+   |---test.json
    |-model
    |---cs
-   |-----bert
-   |-----roberta
    |---intent
    |---qa
    |---slot
